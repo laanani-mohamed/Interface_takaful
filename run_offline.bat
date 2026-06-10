@@ -1,51 +1,71 @@
 @echo off
 cd /d "%~dp0"
 
-:: Chemins vers l’interpréteur Python et pip portable
-set "PYTHON_EXEC=%~dp0python_portable\python.exe"
-set "PIP_EXEC=%~dp0python_portable\pip.exe"
+set "PYTHON=%~dp0python_portable\python.exe"
+set "GET_PIP=%~dp0python_portable\get-pip.py"
 
 :: -------------------------------------------------
-:: 1️⃣ Créer / ré‑utiliser le virtual‑env
+:: 1⃣  Vérifier que python.exe existe
 :: -------------------------------------------------
-if not exist ".venv" (
-    echo Création de l'environnement virtuel …
-    "%PYTHON_EXEC%" -m venv .venv
-) else (
-    echo Environnement virtuel déjà présent.
+if not exist "%PYTHON%" (
+    echo ERREUR : python.exe introuvable dans python_portable\
+    echo Verifiez que le dossier python_portable est bien present.
+    pause
+    exit /b 1
 )
 
 :: -------------------------------------------------
-:: 2️⃣ Activer le virtual‑env
+:: 2⃣  Installer pip si absent
 :: -------------------------------------------------
-call .venv\Scripts\activate.bat
+"%PYTHON%" -m pip --version >nul 2>&1
+if errorlevel 1 (
+    echo Pip absent - installation via get-pip.py ...
+    if not exist "%GET_PIP%" (
+        echo ERREUR : get-pip.py introuvable dans python_portable\
+        echo Copiez get-pip.py dans le dossier python_portable.
+        pause
+        exit /b 1
+    )
+    "%PYTHON%" "%GET_PIP%" --no-index --find-links=.
+) else (
+    echo Pip deja present.
+)
 
 :: -------------------------------------------------
-:: 3️⃣ Installer **tous** les wheels présents
+:: 3⃣  Activer l'import des packages (pth fix)
+:: -------------------------------------------------
+echo import site > "%~dp0python_portable\sitecustomize.py"
+
+:: -------------------------------------------------
+:: 4⃣  Installer tous les wheels locaux
 :: -------------------------------------------------
 set "WHEEL_FOUND=0"
-for %%F in (*.whl) do (
-    echo Installation du wheel %%F …
-    "%PIP_EXEC%" install --no-index --find-links=. "%%F"
+for %%F in ("%~dp0*.whl") do (
+    echo Installation : %%~nxF
+    "%PYTHON%" -m pip install --no-index --find-links="%~dp0" "%%F"
     set "WHEEL_FOUND=1"
 )
 
 if "%WHEEL_FOUND%"=="0" (
-    echo Aucun fichier *.whl trouvé – vérifiez le dossier.
+    echo Aucun fichier .whl trouve - verifiez le dossier Scripts.
 )
 
 :: -------------------------------------------------
-:: 4️⃣ (Optionnel) installer les dépendances listées 
-::    dans requirements.txt (sans *.whl)
+:: 5⃣  Installer depuis requirements.txt
 :: -------------------------------------------------
-if exist "requirements.txt" (
-    echo Installation depuis requirements.txt …
-    "%PIP_EXEC%" install --no-index --find-links=. -r requirements.txt
+if exist "%~dp0requirements.txt" (
+    echo Installation depuis requirements.txt ...
+    "%PYTHON%" -m pip install --no-index --find-links="%~dp0" -r "%~dp0requirements.txt"
+) else (
+    echo requirements.txt absent - etape ignoree.
 )
 
 :: -------------------------------------------------
-:: 5️⃣ Lancer le script principal
+:: 6⃣  Lancer le script principal
 :: -------------------------------------------------
-echo Lancement du script …
-"%PYTHON_EXEC%" S_polars.py
+echo.
+echo ==============================
+echo  Lancement de S_polars.py
+echo ==============================
+"%PYTHON%" "%~dp0S_polars.py"
 pause
